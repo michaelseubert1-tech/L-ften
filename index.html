@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#123b4a">
+  <meta name="description" content="Berechnet, ob Lüften den Keller trockener macht.">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <title>Keller-Lüftungsampel</title>
+  <style>
+    :root{color-scheme:light;--ink:#17313a;--muted:#60747b;--line:#dce6e8;--bg:#f3f7f7;--blue:#287aa0;--green:#16734b;--amber:#94620b;--red:#b43c35}
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+    main{max-width:760px;margin:auto;padding:22px 16px 40px}
+    header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px}
+    h1{font-size:1.45rem;line-height:1.2;margin:0} .sub{color:var(--muted);font-size:.92rem;margin:6px 0 0}
+    .logo{width:48px;height:48px;border-radius:15px;background:#123b4a;color:white;display:grid;place-items:center;font-size:25px;flex:none}
+    .card{background:white;border:1px solid var(--line);border-radius:18px;padding:18px;margin:14px 0;box-shadow:0 4px 16px #17313a0a}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    @media(max-width:560px){.grid{grid-template-columns:1fr}}
+    h2{font-size:1.05rem;margin:0 0 14px}
+    label{display:block;font-size:.88rem;color:var(--muted);margin:10px 0 5px}
+    input{width:100%;padding:12px 13px;border:1px solid #cbd8db;border-radius:11px;font:inherit;color:var(--ink);background:white}
+    input:focus{outline:3px solid #287aa033;border-color:var(--blue)}
+    .unit{position:relative}.unit input{padding-right:46px}.unit span{position:absolute;right:13px;top:12px;color:var(--muted)}
+    .reading{font-size:1.8rem;font-weight:750;letter-spacing:-.04em;margin-top:5px}
+    .muted{color:var(--muted);font-size:.88rem}
+    .result{border-left:6px solid var(--amber);background:#fff9eb}
+    .result.good{border-color:var(--green);background:#effaf4}
+    .result.bad{border-color:var(--red);background:#fff2f0}
+    .result h2{font-size:1.25rem;margin:0 0 7px}
+    .result p{margin:7px 0}
+    .difference{font-size:2rem;font-weight:800;letter-spacing:-.04em}
+    .bars{display:grid;gap:12px;margin-top:14px}.barlabel{display:flex;justify-content:space-between;gap:10px;font-size:.9rem}
+    .track{height:10px;background:#e9eff0;border-radius:20px;overflow:hidden;margin-top:5px}.fill{height:100%;border-radius:20px;background:var(--blue)}
+    button{border:0;border-radius:12px;padding:12px 16px;font:600 1rem inherit;cursor:pointer}
+    .primary{background:#123b4a;color:white}.secondary{background:#edf3f4;color:var(--ink)}
+    .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+    .notice{font-size:.83rem;color:var(--muted);line-height:1.5}
+    .install{display:none}
+    footer{font-size:.8rem;color:var(--muted);text-align:center;margin-top:20px}
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div><h1>Keller-Lüftungsampel</h1><p class="sub">Macht Lüften die Kellerluft trockener?</p></div>
+    <div class="logo" aria-hidden="true">💧</div>
+  </header>
+
+  <section class="grid" aria-label="Messwerte">
+    <div class="card">
+      <h2>🏠 Im Keller</h2>
+      <label for="tin">Temperatur</label><div class="unit"><input id="tin" type="number" inputmode="decimal" step="0.1" value="18"><span>°C</span></div>
+      <label for="rhin">Relative Luftfeuchtigkeit</label><div class="unit"><input id="rhin" type="number" inputmode="decimal" min="0" max="100" step="1" value="70"><span>%</span></div>
+      <div class="muted">Absolute Luftfeuchtigkeit</div><div class="reading" id="ah-in">— g/m³</div>
+    </div>
+    <div class="card">
+      <h2>🌤️ Außenluft</h2>
+      <label for="tout">Temperatur</label><div class="unit"><input id="tout" type="number" inputmode="decimal" step="0.1" value="10"><span>°C</span></div>
+      <label for="rhout">Relative Luftfeuchtigkeit</label><div class="unit"><input id="rhout" type="number" inputmode="decimal" min="0" max="100" step="1" value="80"><span>%</span></div>
+      <div class="muted">Absolute Luftfeuchtigkeit</div><div class="reading" id="ah-out">— g/m³</div>
+    </div>
+  </section>
+
+  <section class="card result" id="result" aria-live="polite">
+    <h2 id="status">Werte eingeben</h2>
+    <div class="difference" id="diff">— g/m³</div>
+    <p id="recommendation">Vergleiche die absolute Luftfeuchtigkeit innen und außen.</p>
+    <p class="muted" id="detail"></p>
+  </section>
+
+  <section class="card">
+    <h2>Feuchtevergleich</h2>
+    <div class="bars">
+      <div><div class="barlabel"><span>Keller</span><strong id="bar-in-label">—</strong></div><div class="track"><div class="fill" id="bar-in" style="width:0%"></div></div></div>
+      <div><div class="barlabel"><span>Außenluft</span><strong id="bar-out-label">—</strong></div><div class="track"><div class="fill" id="bar-out" style="width:0%;background:#299c77"></div></div></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>So verwendest du die Ampel</h2>
+    <p class="notice">Miss Temperatur und relative Luftfeuchtigkeit möglichst zeitgleich. Die App berechnet daraus die absolute Luftfeuchtigkeit. Ist sie draußen niedriger, kann Lüften Feuchtigkeit abführen.</p>
+    <p class="notice"><strong>Wichtig:</strong> Das ist eine Orientierungshilfe. Kalte Kellerwände, Oberflächentemperaturen, Wärmebrücken und lokale Feuchtequellen werden nicht gemessen. Auch bei trockener Außenluft kann zu langes Lüften im Sommer warme Luft an kalten Kellerwänden abkühlen und dort Kondensation verursachen. Bei Schimmel oder dauerhaft feuchten Wänden sollte die Ursache fachlich geprüft werden.</p>
+    <div class="actions">
+      <button class="secondary" id="reset" type="button">Werte zurücksetzen</button>
+      <button class="primary install" id="install" type="button">App installieren</button>
+    </div>
+  </section>
+  <footer>Berechnung nach Magnus-Formel · Die Messwerte bleiben auf diesem Gerät.</footer>
+</main>
+<script>
+  const ids = ["tin","rhin","tout","rhout"];
+  const defaults = {tin:18,rhin:70,tout:10,rhout:80};
+  const $ = id => document.getElementById(id);
+  function absoluteHumidity(t,rh){
+    const vaporPressure = (rh/100) * 6.112 * Math.exp((17.62*t)/(243.12+t));
+    return 216.7 * vaporPressure / (273.15+t);
+  }
+  function calculate(){
+    const v = Object.fromEntries(ids.map(id => [id, Number($(id).value)]));
+    const valid = ids.every(id => $(id).value.trim() !== "" && Number.isFinite(v[id])) &&
+      v.rhin >= 0 && v.rhin <= 100 && v.rhout >= 0 && v.rhout <= 100 &&
+      v.tin > -80 && v.tin < 80 && v.tout > -80 && v.tout < 80;
+    if(!valid){
+      $("status").textContent = "Bitte Messwerte prüfen";
+      $("diff").textContent = "—";
+      $("recommendation").textContent = "Temperaturen müssen plausibel sein; relative Luftfeuchtigkeit muss zwischen 0 und 100 % liegen.";
+      $("detail").textContent = "";
+      return;
+    }
+    const inside = absoluteHumidity(v.tin,v.rhin);
+    const outside = absoluteHumidity(v.tout,v.rhout);
+    const d = inside-outside;
+    $("ah-in").textContent = inside.toFixed(1)+" g/m³";
+    $("ah-out").textContent = outside.toFixed(1)+" g/m³";
+    $("diff").textContent = (d>0?"+":"")+d.toFixed(1)+" g/m³";
+    const result = $("result");
+    result.className = "card result";
+    if(d > 1){
+      result.classList.add("good");
+      $("status").textContent = "🟢 Lüften ist sinnvoll";
+      $("recommendation").textContent = "Die Außenluft enthält weniger Wasser. Stoßlüften kann Feuchtigkeit aus dem Keller abführen.";
+      $("detail").textContent = "Feuchteunterschied: "+d.toFixed(1)+" g/m³ zugunsten der Außenluft. Danach erneut messen.";
+    } else if(d <= 0){
+      result.classList.add("bad");
+      $("status").textContent = "🔴 Lieber nicht lüften";
+      $("recommendation").textContent = "Die Außenluft enthält mindestens genauso viel Wasser wie die Kellerluft. Lüften bringt aktuell keine Entfeuchtung.";
+      $("detail").textContent = "Warte auf trockenere Außenluft und vergleiche erneut.";
+    } else {
+      $("status").textContent = "🟡 Nur bedingt sinnvoll";
+      $("recommendation").textContent = "Der Unterschied ist gering. Eine Entfeuchtung ist möglich, aber voraussichtlich nur wenig.";
+      $("detail").textContent = "Wenn möglich, warte auf einen größeren Unterschied.";
+    }
+    $("bar-in-label").textContent = inside.toFixed(1)+" g/m³";
+    $("bar-out-label").textContent = outside.toFixed(1)+" g/m³";
+    $("bar-in").style.width = Math.min(100,inside/25*100)+"%";
+    $("bar-out").style.width = Math.min(100,outside/25*100)+"%";
+  }
+  ids.forEach(id => $(id).addEventListener("input",calculate));
+  $("reset").addEventListener("click",()=>{ids.forEach(id=>$(id).value=defaults[id]);calculate();});
+  calculate();
+
+  let deferredPrompt;
+  const installButton = $("install");
+  window.addEventListener("beforeinstallprompt", event => {
+    event.preventDefault(); deferredPrompt = event; installButton.style.display = "inline-block";
+  });
+  installButton.addEventListener("click", async () => {
+    if(!deferredPrompt) return;
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    installButton.style.display = "none";
+  });
+  if("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")){
+    window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));
+  }
+</script>
+</body>
+</html>
